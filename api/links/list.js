@@ -1,3 +1,4 @@
+// vars manuales
 const R_URL = process.env.UPSTASH_REDIS_REST_URL || "";
 const R_TOK = process.env.UPSTASH_REDIS_REST_TOKEN || "";
 
